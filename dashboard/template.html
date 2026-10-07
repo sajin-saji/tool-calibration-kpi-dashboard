@@ -1,0 +1,255 @@
+<title>Tool Calibration KPIs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: control-room board — header strip, filter row, 6 KPI tiles, 2x2 chart grid, action table */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --line: #e1e5ea; --grid: #eceff3;
+  --fg: #11161d; --fg2: #4b5563; --muted: #7b8594;
+  --accent: #2a78d6; --accent-soft: #dbe8f8;
+  --crit: #d03b3b; --warn: #fab219; --good: #0ca30c; --warn-ink: #8a5a00; --crit-ink: #b42f2f; --good-ink: #0a7a0a;
+  --font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161b; --surface: #1a1f26; --line: #2b323c; --grid: #252b34;
+  --fg: #f2f4f7; --fg2: #c1c8d2; --muted: #8b95a3;
+  --accent: #3987e5; --accent-soft: #1d3554;
+  --warn-ink: #fab219; --crit-ink: #ef7a7a; --good-ink: #4fc94f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161b; --surface: #1a1f26; --line: #2b323c; --grid: #252b34;
+  --fg: #f2f4f7; --fg2: #c1c8d2; --muted: #8b95a3;
+  --accent: #3987e5; --accent-soft: #1d3554;
+  --warn-ink: #fab219; --crit-ink: #ef7a7a; --good-ink: #4fc94f; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 24px 40px; padding-inline: 20px; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 2px 0 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+.meta { font-family: var(--mono); font-size: 12px; color: var(--fg2); text-align: right; }
+.meta b { color: var(--fg); font-weight: 500; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters span { font-size: 12px; color: var(--muted); margin-right: 4px; }
+.chip { font: 500 13px var(--font); color: var(--fg2); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); color: var(--fg); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.kpi .lbl { font-size: 12px; color: var(--fg2); }
+.kpi .val { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.kpi .sub { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.kpi.crit { border-left: 4px solid var(--crit); }
+.kpi.warn { border-left: 4px solid var(--warn); }
+.kpi .flag { font-family: var(--mono); font-size: 11.5px; font-weight: 500; }
+.kpi.crit .flag { color: var(--crit-ink); } .kpi.warn .flag { color: var(--warn-ink); } .kpi.good .flag { color: var(--good-ink); }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px 12px; min-width: 0; }
+.panel h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.panel p.note { margin: 2px 0 10px; font-size: 12.5px; color: var(--fg2); }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--font); font-size: 11.5px; fill: var(--fg2); }
+.chart .v { font-family: var(--mono); font-size: 11px; fill: var(--fg); }
+.tip { position: absolute; pointer-events: none; background: var(--fg); color: var(--bg); font-size: 12px; padding: 6px 9px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); opacity: 0; transition: opacity .1s; z-index: 2; }
+.tip b { font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); padding: 8px 10px; white-space: nowrap; }
+td { border-bottom: 1px solid var(--grid); padding: 7px 10px; white-space: nowrap; }
+td.mono { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 999px; border: 1px solid; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.crit { color: var(--crit-ink); border-color: var(--crit); }
+.pill.warn { color: var(--warn-ink); border-color: var(--warn); }
+.pill.soon { color: var(--fg2); border-color: var(--line); }
+.tablehead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.more { font: 500 12.5px var(--font); color: var(--accent); background: none; border: 0; cursor: pointer; padding: 8px 0 0; }
+footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+@media (max-width: 980px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } .meta { text-align: left; } }
+@media (max-width: 460px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi .val { font-size: 24px; } h1 { font-size: 22px; } }
+@media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Tool Center · Calibration Services</div>
+      <h1>Tool Calibration KPI Dashboard</h1>
+    </div>
+    <div class="meta">Reporting date <b>07 Oct 2026</b><br>Trend window <b>Oct 2025 – Sep 2026</b><br>Synthetic data · portfolio project</div>
+  </header>
+
+  <div class="filters" role="group" aria-label="Filter by department" id="filters"><span>Department</span></div>
+
+  <section class="kpis" id="kpis" aria-label="Key figures"></section>
+
+  <div class="grid2">
+    <section class="panel"><h2>Overdue rate by department</h2><p class="note">Share of active tools past their calibration due date. Dashed line: 5% limit.</p><div class="chart" id="c-dept"></div></section>
+    <section class="panel"><h2>Calibration cost by tool type</h2><p class="note">Last 12 complete months, EUR. Hover for count and fail rate.</p><div class="chart" id="c-cost"></div></section>
+    <section class="panel"><h2>Calibrations per month</h2><p class="note">Completed calibration jobs.</p><div class="chart" id="c-vol"></div></section>
+    <section class="panel"><h2>First-time pass rate</h2><p class="note">Share of calibrations passed without adjustment or failure. Dashed line: 85% target.</p><div class="chart" id="c-pass"></div></section>
+  </div>
+
+  <section class="panel">
+    <div class="tablehead"><h2>Action list</h2><p class="note" id="list-note"></p></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Status</th><th>Tool ID</th><th>Tool type</th><th>Department</th><th>Location</th><th>Due date</th><th>Days</th></tr></thead>
+      <tbody id="list"></tbody>
+    </table></div>
+    <button class="more" id="more" type="button"></button>
+  </section>
+
+  <footer>Built by Sajin Saji with Python (pandas), SQLite/SQL and SVG. All data is randomly generated for demonstration and does not describe any real company. Source: github.com/sajin-saji</footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const AS_OF = "2026-10-07", DUE_LIMIT = "2026-11-06", WIN_FROM = "2025-10-01", WIN_TO = "2026-09-30";
+const DEPTS = ["Fuselage Assembly", "Wing Assembly", "Cabin Installation", "Quality Lab", "Logistics"];
+const tools = DATA.tools.map(([id, type, dept, loc, next, status]) => ({ id, type, dept, loc, next, status }));
+const toolById = Object.fromEntries(tools.map(t => [t.id, t]));
+const events = DATA.events.map(([tool, date, result, cost, ta]) => ({ tool, date, result, cost, ta, dept: toolById[tool].dept, type: toolById[tool].type }));
+let dept = "All", showAll = false;
+
+const $ = s => document.querySelector(s);
+const fmt = n => n.toLocaleString("en-GB");
+const pct = (a, b) => b ? 100 * a / b : 0;
+const days = d => Math.round((Date.parse(d) - Date.parse(AS_OF)) / 864e5);
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
+function tipFor(box) { let t = box.querySelector(".tip"); if (!t) { t = document.createElement("div"); t.className = "tip"; box.appendChild(t); } return t; }
+function showTip(box, html, x, y) { const t = tipFor(box), r = box.getBoundingClientRect(); t.innerHTML = html; t.style.left = Math.min(Math.max(x, 70), r.width - 70) + "px"; t.style.top = y + "px"; t.style.opacity = 1; }
+function hideTip(box) { const t = box.querySelector(".tip"); if (t) t.style.opacity = 0; }
+function toPx(svg, box, x, y) { const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal; return [x * r.width / vb.width, y * r.height / vb.height]; }
+
+// ---------- filters ----------
+["All", ...DEPTS].forEach(d => {
+  const b = document.createElement("button"); b.className = "chip"; b.type = "button"; b.textContent = d;
+  b.setAttribute("aria-pressed", d === dept); b.onclick = () => { dept = d; showAll = false; render(); };
+  $("#filters").appendChild(b);
+});
+
+// ---------- charts ----------
+function hbar(box, rows, { max, unit, ref, highlight }) {
+  box.innerHTML = "";
+  const W = 520, rowH = 30, L = 132, R = 56, H = rows.length * rowH + 22;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" }, box);
+  const x = v => L + (W - L - R) * v / max;
+  [0, max / 2, max].forEach(t => {
+    el("line", { x1: x(t), x2: x(t), y1: 0, y2: H - 18, stroke: "var(--grid)" }, svg);
+    el("text", { x: x(t), y: H - 4, "text-anchor": "middle" }, svg).textContent = unit(t);
+  });
+  rows.forEach((r, i) => {
+    const y = i * rowH + 6, dim = highlight && highlight !== "All" && r.label !== highlight;
+    el("text", { x: L - 10, y: y + 13, "text-anchor": "end", style: dim ? "opacity:.55" : "" }, svg).textContent = r.label;
+    const w = Math.max(2, x(r.value) - L);
+    el("path", { d: `M${L},${y + 3} h${w - 4} a4,4 0 0 1 4,4 v6 a4,4 0 0 1 -4,4 h${-(w - 4)} z`, fill: "var(--accent)", opacity: dim ? .3 : 1 }, svg);
+    el("text", { x: L + w + 6, y: y + 13, class: "v" }, svg).textContent = r.display;
+    const hit = el("rect", { x: 0, y: y - 2, width: W, height: rowH, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", () => { const [px, py] = toPx(svg, box, L + w / 2, y); showTip(box, r.tip, px, py); });
+    hit.addEventListener("mouseleave", () => hideTip(box));
+  });
+  if (ref != null) {
+    el("line", { x1: x(ref), x2: x(ref), y1: 0, y2: H - 18, stroke: "var(--crit)", "stroke-dasharray": "4 3", "stroke-width": 1.5 }, svg);
+  }
+}
+
+function months() { const m = []; for (let d = new Date(Date.UTC(2025, 9, 1)); d <= new Date(Date.UTC(2026, 8, 1)); d.setUTCMonth(d.getUTCMonth() + 1)) m.push(d.toISOString().slice(0, 7)); return m; }
+const MONTHS = months();
+const mLabel = m => new Date(m + "-01T00:00:00Z").toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+
+function vbars(box, vals) {
+  box.innerHTML = "";
+  const W = 520, H = 200, L = 34, B = 24, T = 8, max = Math.max(10, Math.ceil(Math.max(...vals.map(v => v.n)) / 10) * 10);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" }, box);
+  const y = v => T + (H - T - B) * (1 - v / max), bw = (W - L) / vals.length;
+  [0, max / 2, max].forEach(t => { el("line", { x1: L, x2: W, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); el("text", { x: L - 6, y: y(t) + 4, "text-anchor": "end" }, svg).textContent = t; });
+  vals.forEach((v, i) => {
+    const x0 = L + i * bw + bw * .2, w = bw * .6, h = H - B - y(v.n);
+    if (v.n > 0) el("path", { d: `M${x0},${H - B} v${-(h - 4)} a4,4 0 0 1 4,-4 h${w - 8} a4,4 0 0 1 4,4 v${h - 4} z`, fill: "var(--accent)" }, svg);
+    if (i % 2 === 0 || vals.length < 8) el("text", { x: x0 + w / 2, y: H - 6, "text-anchor": "middle" }, svg).textContent = mLabel(v.m);
+    const hit = el("rect", { x: L + i * bw, y: T, width: bw, height: H - T - B, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", () => { const [px, py] = toPx(svg, box, x0 + w / 2, y(v.n)); showTip(box, `<b>${mLabel(v.m)} ${v.m.slice(0, 4)}</b> · ${v.n} calibrations`, px, py); });
+    hit.addEventListener("mouseleave", () => hideTip(box));
+  });
+}
+
+function line(box, vals, target) {
+  box.innerHTML = "";
+  const W = 520, H = 200, L = 40, B = 24, T = 10, lo = 50, hi = 100;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" }, box);
+  const step = (W - L - 12) / (vals.length - 1), x = i => L + i * step, y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  [50, 75, 100].forEach(t => { el("line", { x1: L, x2: W, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); el("text", { x: L - 6, y: y(t) + 4, "text-anchor": "end" }, svg).textContent = t + "%"; });
+  el("line", { x1: L, x2: W, y1: y(target), y2: y(target), stroke: "var(--crit)", "stroke-dasharray": "4 3", "stroke-width": 1.5 }, svg);
+  const pts = vals.map((v, i) => v.r == null ? null : [x(i), y(Math.max(lo, v.r))]);
+  const d = pts.filter(Boolean).map((p, i) => (i ? "L" : "M") + p.join(",")).join("");
+  el("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+  vals.forEach((v, i) => { if (i % 2 === 0) el("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, svg).textContent = mLabel(v.m); });
+  const last = pts[pts.length - 1];
+  if (last) { el("circle", { cx: last[0], cy: last[1], r: 4.5, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2 }, svg); }
+  const cross = el("line", { y1: T, y2: H - B, stroke: "var(--muted)", "stroke-width": 1, opacity: 0 }, svg);
+  const dot = el("circle", { r: 5, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, svg);
+  const hit = el("rect", { x: L, y: T, width: W - L, height: H - T - B, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", e => {
+    const r = svg.getBoundingClientRect(), vx = (e.clientX - r.left) * W / r.width, i = Math.max(0, Math.min(vals.length - 1, Math.round((vx - L) / step)));
+    if (!pts[i]) return;
+    cross.setAttribute("x1", pts[i][0]); cross.setAttribute("x2", pts[i][0]); cross.setAttribute("opacity", .6);
+    dot.setAttribute("cx", pts[i][0]); dot.setAttribute("cy", pts[i][1]); dot.setAttribute("opacity", 1);
+    const [px, py] = toPx(svg, box, pts[i][0], pts[i][1]);
+    showTip(box, `<b>${mLabel(vals[i].m)} ${vals[i].m.slice(0, 4)}</b> · ${vals[i].r.toFixed(1)}% pass (${vals[i].n} jobs)`, px, py);
+  });
+  hit.addEventListener("mouseleave", () => { hideTip(box); cross.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); });
+}
+
+// ---------- render ----------
+function render() {
+  document.querySelectorAll(".chip").forEach(b => b.setAttribute("aria-pressed", b.textContent === dept));
+  const inDept = t => dept === "All" || t.dept === dept;
+  const active = tools.filter(t => t.status !== "Lost" && t.status !== "Out of Service");
+  const act = active.filter(inDept);
+  const overdue = act.filter(t => t.next < AS_OF);
+  const due30 = act.filter(t => t.next >= AS_OF && t.next <= DUE_LIMIT);
+  const ev = events.filter(e => e.date >= WIN_FROM && e.date <= WIN_TO && (dept === "All" || e.dept === dept));
+  const pass = pct(ev.filter(e => e.result === "Pass").length, ev.length);
+  const ta = ev.reduce((s, e) => s + e.ta, 0) / (ev.length || 1);
+  const cost = ev.reduce((s, e) => s + e.cost, 0);
+  const oPct = pct(overdue.length, act.length);
+
+  const tiles = [
+    { lbl: "Active tools", val: fmt(act.length), sub: "excl. lost / out of service" },
+    { lbl: "Overdue", val: overdue.length, sub: oPct.toFixed(1) + "% of active", cls: oPct > 5 ? "crit" : "good", flag: oPct > 5 ? "▲ above 5% limit" : "● within 5% limit" },
+    { lbl: "Due in next 30 days", val: due30.length, sub: "07 Oct – 06 Nov", cls: "warn", flag: "◆ schedule now" },
+    { lbl: "First-time pass rate", val: pass.toFixed(1) + "%", sub: "target 85%", cls: pass < 85 ? "warn" : "good", flag: pass < 85 ? "▼ below target" : "● on target" },
+    { lbl: "Avg. turnaround", val: ta.toFixed(1) + " d", sub: "send-out to return" },
+    { lbl: "Calibration cost", val: "€" + fmt(Math.round(cost)), sub: fmt(ev.length) + " jobs · 12 months" },
+  ];
+  $("#kpis").innerHTML = tiles.map(t => `<div class="kpi ${t.cls || ""}"><div class="lbl">${t.lbl}</div><div class="val">${t.val}</div>${t.flag ? `<div class="flag">${t.flag}</div>` : ""}<div class="sub">${t.sub}</div></div>`).join("");
+
+  // department chart: always all departments, selected one highlighted
+  const deptRows = DEPTS.map(d => { const a = active.filter(t => t.dept === d), o = a.filter(t => t.next < AS_OF).length; return { label: d, value: pct(o, a.length), display: pct(o, a.length).toFixed(1) + "%", tip: `<b>${d}</b> · ${o} of ${a.length} tools overdue` }; }).sort((a, b) => b.value - a.value);
+  hbar($("#c-dept"), deptRows, { max: 10, unit: t => t + "%", ref: 5, highlight: dept });
+
+  const types = [...new Set(tools.map(t => t.type))];
+  const costRows = types.map(ty => { const e = ev.filter(x => x.type === ty), c = e.reduce((s, x) => s + x.cost, 0), f = pct(e.filter(x => x.result === "Fail").length, e.length); return { label: ty, value: c, display: "€" + fmt(Math.round(c)), tip: `<b>${ty}</b> · ${e.length} jobs · ${f.toFixed(1)}% failed` }; }).sort((a, b) => b.value - a.value);
+  const cmax = Math.ceil(Math.max(...costRows.map(r => r.value), 1) / 2000) * 2000;
+  hbar($("#c-cost"), costRows, { max: cmax, unit: t => "€" + (t >= 1000 ? (t / 1000) + "k" : t) });
+
+  const monthly = MONTHS.map(m => { const e = ev.filter(x => x.date.startsWith(m)); return { m, n: e.length, r: e.length ? pct(e.filter(x => x.result === "Pass").length, e.length) : null }; });
+  vbars($("#c-vol"), monthly);
+  line($("#c-pass"), monthly, 85);
+
+  const list = [...overdue, ...due30].sort((a, b) => a.next.localeCompare(b.next));
+  const shown = showAll ? list : list.slice(0, 10);
+  $("#list-note").textContent = `${overdue.length} overdue · ${due30.length} due within 30 days`;
+  $("#list").innerHTML = shown.map(t => { const d = days(t.next), cls = d < 0 ? "crit" : d <= 7 ? "warn" : "soon", txt = d < 0 ? "Overdue" : d <= 7 ? "Due ≤ 7 days" : "Due ≤ 30 days";
+    return `<tr><td><span class="pill ${cls}">${txt}</span></td><td class="mono">${t.id}</td><td>${t.type}</td><td>${t.dept}</td><td>${t.loc}</td><td class="mono">${t.next}</td><td class="mono">${d > 0 ? "+" + d : d}</td></tr>`; }).join("");
+  const more = $("#more"); more.hidden = list.length <= 10;
+  more.textContent = showAll ? "Show fewer" : `Show all ${list.length} tools`;
+  more.onclick = () => { showAll = !showAll; render(); };
+}
+render();
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+</script>
