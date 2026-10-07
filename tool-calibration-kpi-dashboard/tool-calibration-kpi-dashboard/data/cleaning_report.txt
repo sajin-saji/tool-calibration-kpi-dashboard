@@ -1,8 +1,0 @@
-Loaded 508 tool rows and 1340 calibration event rows.
-Removed 8 duplicate tool rows.
-Removed 15 duplicate event rows.
-Standardized 15 department names and normalized tool-type casing/whitespace.
-Converted 20 dates from DD.MM.YYYY to ISO format.
-Recomputed 12 missing next-due dates.
-Removed 10 events with zero or negative cost.
-Saved 500 clean tools and 1315 clean events to CSV and SQLite.
